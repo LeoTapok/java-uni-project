@@ -6,58 +6,104 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
+import com.example.countryinfo.cache.CacheService;
+import com.example.countryinfo.exception.BadRequestException;
+import com.example.countryinfo.exception.ObjectExistException;
+import com.example.countryinfo.exception.ObjectNotFoundException;
 import com.example.countryinfo.model.Currency;
 import com.example.countryinfo.repository.CurrencyRepository;
 
 import jakarta.transaction.Transactional;
+import lombok.AllArgsConstructor;
+import static com.example.countryinfo.utilities.Constants.NOT_FOUND_MSG;
+import static com.example.countryinfo.utilities.Constants.BAD_REQUEST_MSG;
+import static com.example.countryinfo.utilities.Constants.OBJECT_EXIST_MSG;
 
 @Service
+@AllArgsConstructor
 public class CurrencyService {
 
     private CurrencyRepository currencyRepository;
+    private static final Integer ALL_CONTAINS = 69420;
 
-    public Currency getCurrencyById(Long id) {
-        return currencyRepository.findById(id).orElseThrow(() -> new IllegalStateException(
-                "currency with id " + id + "does not exist"));
+    private CacheService<Integer, Optional<Currency>> cacheService;
+
+    private void updateCacheService() {
+        if (!cacheService.containsKey(ALL_CONTAINS)) {
+            List<Currency> currencies = currencyRepository.findAll();
+            for (Currency currency : currencies) {
+                if (cacheService.containsKey(currency.getId())) {
+                    Integer hash = Objects.hash(currency.getId());
+                    cacheService.put(hash, Optional.of(currency));
+                }
+            }
+            cacheService.put(ALL_CONTAINS, null);
+        }
+    }
+
+    public Currency getCurrencyById(Integer id) throws ObjectNotFoundException {
+        Integer hash = Objects.hashCode(id);
+        Optional<Currency> currency;
+        if (cacheService.containsKey(hash)) {
+            currency = cacheService.get(hash);
+        } else {
+            currency = currencyRepository.findById(id);
+            cacheService.put(hash, currency);
+        }
+        if (currency.isEmpty()) {
+            throw new ObjectNotFoundException(NOT_FOUND_MSG);
+        }
+        return currency.get();
     }
 
     public List<Currency> getAllCurrency() {
+        updateCacheService();
         return currencyRepository.findAll();
     }
 
-    public void createCurrency(Currency currency) {
-        Optional<Currency> currencyOptional = currencyRepository
-                .findByName(currency.getName());
+    public void createCurrency(Currency currency) throws ObjectExistException {
+        Optional<Currency> currencyOptional = currencyRepository.findByName(currency.getName());
         if (currencyOptional.isPresent()) {
-            throw new IllegalStateException("currency exists");
+            throw new ObjectExistException(OBJECT_EXIST_MSG);
         }
         currencyRepository.save(currency);
     }
 
     @Transactional
-    public void updateCurrency(Long id, String name, Long usdPrice) {
-        Currency currency = currencyRepository.findById(id)
-                .orElseThrow(() -> new IllegalStateException(
-                        "currency with id " + id + "can not be updated, because it does not exist"));
-
-        if (name != null && !name.isEmpty() && !Objects.equals(currency.getName(), name)) {
-            Optional<Currency> currencyOptional = currencyRepository.findByName(name);
-            if (currencyOptional.isPresent()) {
-                throw new IllegalStateException("country with this name exists");
-            }
-            currency.setName(name);
+    public void updateCurrency(Integer id, String name, Float usdPrice) throws BadRequestException {
+        Optional<Currency> currency;
+        Integer hash = Objects.hashCode(id);
+        if (cacheService.containsKey(hash)) {
+            currency = cacheService.get(hash);
+        } else {
+            currency = currencyRepository.findById(id);
         }
-
-        if (usdPrice != null && usdPrice > 0 && !Objects.equals(currency.getUsdPrice(), usdPrice)) {
-            currency.setUsdPrice(usdPrice);
+        if (currency.isEmpty()) {
+            throw new BadRequestException(BAD_REQUEST_MSG);
         }
+        currency.get().setName(name);
+        currency.get().setUsdPrice(usdPrice);
+        if (cacheService.containsKey(id)) {
+            cacheService.remove(id);
+        }
+        cacheService.put(id, currency);
+        currencyRepository.save(currency.get());
     }
 
-    public void deleteCurrency(Long id) {
-        boolean exists = currencyRepository.existsById(id);
-        if (!exists) {
-            throw new IllegalStateException(
-                    "currency, which id " + id + " can not be deleted, because id does not exist");
+    public void deleteCurrency(Integer id) throws BadRequestException{
+        Optional<Currency> currency;
+        Integer hash = Objects.hash(id);
+        if(cacheService.containsKey(hash)){
+            currency = cacheService.get(hash);
+        }
+        else{
+            currency = currencyRepository.findById(id);
+        }
+        if(currency.isEmpty()){
+            throw new BadRequestException(BAD_REQUEST_MSG);
+        }
+        if(cacheService.containsKey(hash)){
+            cacheService.remove(hash);
         }
         currencyRepository.deleteById(id);
     }

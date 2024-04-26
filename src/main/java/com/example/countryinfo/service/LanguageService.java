@@ -6,60 +6,105 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
+import com.example.countryinfo.cache.CacheService;
+import com.example.countryinfo.exception.BadRequestException;
+import com.example.countryinfo.exception.ObjectExistException;
+import com.example.countryinfo.exception.ObjectNotFoundException;
 import com.example.countryinfo.model.Language;
 import com.example.countryinfo.repository.LanguageRepository;
 
 import jakarta.transaction.Transactional;
+import lombok.AllArgsConstructor;
+import static com.example.countryinfo.utilities.Constants.NOT_FOUND_MSG;
+import static com.example.countryinfo.utilities.Constants.BAD_REQUEST_MSG;
+import static com.example.countryinfo.utilities.Constants.OBJECT_EXIST_MSG;
 
 @Service
+@AllArgsConstructor
 public class LanguageService {
 
     private LanguageRepository languageRepository;
 
+    private static final Integer ALL_CONTAINS = 69420;
+
+    private CacheService<Integer, Optional<Language>> cacheService;
+
+    private void updateCacheService() {
+        if (!cacheService.containsKey(ALL_CONTAINS)) {
+            List<Language> languages = languageRepository.findAll();
+            for (Language language : languages) {
+                if (cacheService.containsKey(language.getId())) {
+                    Integer hash = Objects.hash(language.getId());
+                    cacheService.put(hash, Optional.of(language));
+                }
+            }
+            cacheService.put(ALL_CONTAINS, null);
+        }
+    }
+
     public List<Language> getAllLanguages() {
+        updateCacheService();
         return languageRepository.findAll();
     }
 
-    public Language getLanguageById(Long id) {
-        return languageRepository.findById(id).orElseThrow(() -> new IllegalStateException(
-                "language with id " + id + "does not exist"));
+    public Language getLanguageById(Integer id) throws ObjectNotFoundException {
+        Integer hash = Objects.hashCode(id);
+        Optional<Language> language;
+        if (cacheService.containsKey(hash)) {
+            language = cacheService.get(hash);
+        } else {
+            language = languageRepository.findById(id);
+            cacheService.put(hash, language);
+        }
+        if (language.isEmpty()) {
+            throw new ObjectNotFoundException(NOT_FOUND_MSG);
+        }
+        return language.get();
     }
 
-    public void createLaguage(Language language) {
-        Optional<Language> languageOptional = languageRepository
-                .findByName(language.getName());
+    public void createLanguage(Language language) throws ObjectExistException {
+        Optional<Language> languageOptional = languageRepository.findByName(language.getName());
         if (languageOptional.isPresent()) {
-            throw new IllegalStateException("language exists");
+            throw new ObjectExistException(OBJECT_EXIST_MSG);
         }
         languageRepository.save(language);
     }
 
     @Transactional
-    public void updateLanguage(Long id, String name, Long speakers) {
-        Language language = languageRepository.findById(id)
-                .orElseThrow(() -> new IllegalStateException(
-                        "currency with id " + id + "can not be updated, because it does not exist"));
-
-        if (name != null && !name.isEmpty() && !Objects.equals(language.getName(), name)) {
-            Optional<Language> languageOptional = languageRepository.findByName(name);
-            if (languageOptional.isPresent()) {
-                throw new IllegalStateException("country with this name exists");
-            }
-            language.setName(name);
+    public void updateLanguage(Integer id, String name, Long speakers) throws BadRequestException {
+        Optional<Language> language;
+        Integer hash = Objects.hashCode(id);
+        if (cacheService.containsKey(hash)) {
+            language = cacheService.get(hash);
+        } else {
+            language = languageRepository.findById(id);
         }
-
-        if (speakers != null && speakers > 0 && !Objects.equals(language.getSpeakers(), speakers)) {
-            language.setSpeakers(speakers);
+        if (language.isEmpty()) {
+            throw new BadRequestException(BAD_REQUEST_MSG);
         }
+        language.get().setName(name);
+        language.get().setSpeakers(speakers);
+        if (cacheService.containsKey(id)) {
+            cacheService.remove(id);
+        }
+        cacheService.put(id, language);
+        languageRepository.save(language.get());
     }
 
-    public void deleteLanguage(Long id) {
-        boolean exists = languageRepository.existsById(id);
-        if (!exists) {
-            throw new IllegalStateException(
-                    "language, which id " + id + " can not be deleted, because id does not exist");
+    public void deleteLanguage(Integer id) throws BadRequestException {
+        Optional<Language> language;
+        Integer hash = Objects.hash(id);
+        if (cacheService.containsKey(hash)) {
+            language = cacheService.get(hash);
+        } else {
+            language = languageRepository.findById(id);
+        }
+        if (language.isEmpty()) {
+            throw new BadRequestException(BAD_REQUEST_MSG);
+        }
+        if (cacheService.containsKey(hash)) {
+            cacheService.remove(hash);
         }
         languageRepository.deleteById(id);
     }
-
 }

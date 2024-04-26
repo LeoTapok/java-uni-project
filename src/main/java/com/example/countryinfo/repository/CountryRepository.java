@@ -10,8 +10,8 @@ import org.springframework.stereotype.Repository;
 import com.example.countryinfo.model.Country;
 
 @Repository
-public interface CountryRepository extends JpaRepository<Country, Long> {
+public interface CountryRepository extends JpaRepository<Country, Integer> {
 
-    @Query("SELECT s FROM country s WHERE s.name:= name")
+    @Query("SELECT s FROM Country s WHERE s.name = :name")
     Optional<Country> findByName(@Param("name") String name);
 }

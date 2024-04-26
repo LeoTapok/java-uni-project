@@ -12,6 +12,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.countryinfo.exception.BadRequestException;
+import com.example.countryinfo.exception.ObjectExistException;
+import com.example.countryinfo.exception.ObjectNotFoundException;
 import com.example.countryinfo.model.Currency;
 import com.example.countryinfo.service.CurrencyService;
 
@@ -29,22 +32,22 @@ public class CurrencyController {
     }
 
     @GetMapping("/{id}")
-    public Currency getCurrency(@PathVariable Long id) {
+    public Currency getCurrency(@PathVariable Integer id) throws ObjectNotFoundException {
         return currencyService.getCurrencyById(id);
     }
 
     @PostMapping("/create")
-    public void createCurrency(@RequestBody Currency currency) {
+    public void createCurrency(@RequestBody Currency currency) throws ObjectExistException{
         currencyService.createCurrency(currency);
     }
 
     @PutMapping("/update/{id}")
-    public void updateCurrency(@PathVariable Long id, @RequestParam String name, @RequestParam Long usdPrice) {
+    public void updateCurrency(@PathVariable Integer id, @RequestParam String name, @RequestParam Float usdPrice) throws BadRequestException {
         currencyService.updateCurrency(id, name, usdPrice);
     }
 
     @DeleteMapping("/delete/{id}")
-    public void deleteCurrency(@PathVariable Long id) {
+    public void deleteCurrency(@PathVariable Integer id) throws BadRequestException{
         currencyService.deleteCurrency(id);
     }
 }

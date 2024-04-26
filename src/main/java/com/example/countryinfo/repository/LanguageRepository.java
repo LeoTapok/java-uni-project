@@ -10,9 +10,9 @@ import org.springframework.stereotype.Repository;
 import com.example.countryinfo.model.Language;
 
 @Repository
-public interface LanguageRepository extends JpaRepository<Language, Long> {
+public interface LanguageRepository extends JpaRepository<Language, Integer> {
 
-    @Query("SELECT s FROM languages s WHERE s.name:=name")
+    @Query("SELECT s FROM Language s WHERE s.name = :name")
     Optional<Language> findByName(@Param("name") String name);
 
 }

@@ -7,66 +7,150 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 import com.example.countryinfo.model.Country;
+import com.example.countryinfo.model.Currency;
+import com.example.countryinfo.model.Language;
 import com.example.countryinfo.repository.CountryRepository;
+import com.example.countryinfo.repository.CurrencyRepository;
+import com.example.countryinfo.repository.LanguageRepository;
+import com.example.countryinfo.cache.CacheService;
+import com.example.countryinfo.exception.BadRequestException;
+import com.example.countryinfo.exception.ObjectExistException;
+import com.example.countryinfo.exception.ObjectNotFoundException;
 
 import jakarta.transaction.Transactional;
+import lombok.AllArgsConstructor;
+
+import static com.example.countryinfo.utilities.Constants.NOT_FOUND_MSG;
+import static com.example.countryinfo.utilities.Constants.BAD_REQUEST_MSG;
+import static com.example.countryinfo.utilities.Constants.OBJECT_EXIST_MSG;
 
 @Service
-
+@AllArgsConstructor
 public class CountryService {
 
     private CountryRepository countryRepository;
+    private LanguageRepository languageRepository;
+    private CurrencyRepository currencyRepository;
 
-    public List<Country> getCountry(Long id) {
-        return List.of(
-                Country.builder().name("StranaPiwka" + id).build());
+    private static final Integer ALL_CONTAINS = 69420;
+
+    private CacheService<Integer, Optional<Country>> cacheService;
+
+    private void updateCacheService() {
+        if (!cacheService.containsKey(ALL_CONTAINS)) {
+            List<Country> countries = countryRepository.findAll();
+            for (Country country : countries) {
+                if (cacheService.containsKey(country.getId())) {
+                    Integer hash = Objects.hash(country.getId());
+                    cacheService.put(hash, Optional.of(country));
+                }
+            }
+            cacheService.put(ALL_CONTAINS, null);
+        }
     }
 
     public List<Country> getAllCountries() {
+        updateCacheService();
         return countryRepository.findAll();
     }
 
-    public Country getCountryById(Long id) {
-        return countryRepository.findById(id).orElseThrow(() -> new IllegalStateException(
-                "country with id " + id + "does not exist"));
+    public Country getCountryById(Integer id) throws ObjectNotFoundException {
+        Integer hash = Objects.hashCode(id);
+        Optional<Country> country;
+        if (cacheService.containsKey(hash)) {
+            country = cacheService.get(hash);
+        } else {
+            country = countryRepository.findById(id);
+            cacheService.put(hash, country);
+        }
+        if (country.isEmpty()) {
+            throw new ObjectNotFoundException(NOT_FOUND_MSG);
+        }
+        return country.get();
     }
 
-    public void createCountry(Country country) {
-        Optional<Country> countryOptional = countryRepository
-                .findByName(country.getName());
+    public void createCountry(Country country) throws ObjectExistException {
+        Optional<Country> countryOptional = countryRepository.findByName(country.getName());
         if (countryOptional.isPresent()) {
-            throw new IllegalStateException("country exists");
+            throw new ObjectExistException(OBJECT_EXIST_MSG);
         }
         countryRepository.save(country);
     }
 
     @Transactional
-    public void updateCountry(Long id, // may be add some other fields
-            String name,
-            String beerSupply) {
-        Country country = countryRepository.findById(id)
-                .orElseThrow(() -> new IllegalStateException(
-                        "country with id " + id + "can not be updated, because it does not exist"));
-
-        if (name != null && !name.isEmpty() && !Objects.equals(country.getName(), name)) {
-            Optional<Country> countryOptional = countryRepository.findByName(name);
-            if (countryOptional.isPresent()) {
-                throw new IllegalStateException("country with this name exists");
-            }
-            country.setName(name);
+    public void updateCountry(Integer id, String name, String beerSupply) throws BadRequestException {
+        Optional<Country> country;
+        Integer hash = Objects.hashCode(id);
+        if (cacheService.containsKey(hash)) {
+            country = cacheService.get(hash);
+        } else {
+            country = countryRepository.findById(id);
         }
-
-        if (beerSupply != null && !beerSupply.isEmpty() && !Objects.equals(country.getBeerSupply(), beerSupply)) {
-            country.setBeerSupply(beerSupply);
+        if (country.isEmpty()) {
+            throw new BadRequestException(BAD_REQUEST_MSG);
         }
+        country.get().setName(name);
+        country.get().setBeerSupply(beerSupply);
+        if (cacheService.containsKey(id)) {
+            cacheService.remove(id);
+        }
+        cacheService.put(id, country);
+        countryRepository.save(country.get());
     }
 
-    public void deleteCountry(Long id) {
-        boolean exists = countryRepository.existsById(id);
-        if (!exists) {
-            throw new IllegalStateException(
-                    "country, which id " + id + " can not be deleted, because id does not exist");
+    public void deleteCountry(Integer id) throws BadRequestException {
+        Optional<Country> country;
+        Integer hash = Objects.hash(id);
+        if (cacheService.containsKey(hash)) {
+            country = cacheService.get(hash);
+        } else {
+            country = countryRepository.findById(id);
+        }
+        if (country.isEmpty()) {
+            throw new BadRequestException(BAD_REQUEST_MSG);
+        }
+        if (cacheService.containsKey(hash)) {
+            cacheService.remove(hash);
         }
         countryRepository.deleteById(id);
+    }
+
+    @Transactional
+    public Country addLanguageInCountryById(String countryName, Integer languageId) throws BadRequestException {
+        Optional<Country> country = countryRepository.findByName(countryName);
+        if (country.isEmpty()) {
+            throw new BadRequestException(BAD_REQUEST_MSG);
+        }
+
+        Optional<Language> language = languageRepository.findById(languageId);
+        if (language.isEmpty()) {
+            throw new BadRequestException(BAD_REQUEST_MSG);
+        }
+        country.get().getLanguages().add(language.get());
+        Integer hash = Objects.hashCode(country.get().getId());
+        if (cacheService.containsKey(hash)) {
+            cacheService.remove(hash);
+        }
+        cacheService.put(hash, country);
+        return countryRepository.save(country.get());
+    }
+
+    @Transactional
+    public Country addCurrencyInCountryById(String countryName, Integer currencyId) throws BadRequestException {
+        Optional<Country> country = countryRepository.findByName(countryName);
+        if (country.isEmpty()) {
+            throw new BadRequestException(BAD_REQUEST_MSG);
+        }
+        Optional<Currency> currency = currencyRepository.findById(currencyId);
+        if (currency.isEmpty()) {
+            throw new BadRequestException(BAD_REQUEST_MSG);
+        }
+        country.get().setCurrency(currency.get());
+        Integer hash = Objects.hashCode(country.get().getId());
+        if (cacheService.containsKey(hash)) {
+            cacheService.remove(hash);
+        }
+        cacheService.put(hash, country);
+        return countryRepository.save(country.get());
     }
 }

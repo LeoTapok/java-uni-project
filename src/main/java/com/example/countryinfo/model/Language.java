@@ -1,6 +1,8 @@
 package com.example.countryinfo.model;
 
-import java.util.Set;
+import java.util.*;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -17,7 +19,7 @@ import lombok.Data;
 public class Language {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     @Column(name = "name")
     private String name;
@@ -25,6 +27,7 @@ public class Language {
     @Column(name = "speakers")
     private Long speakers;
 
-    @ManyToMany(mappedBy = "countries")
+    @ManyToMany(mappedBy = "languages")
+    @JsonIgnore
     private Set<Country> countries;
 }

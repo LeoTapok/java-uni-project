@@ -1,6 +1,6 @@
 package com.example.countryinfo.model;
 
-import java.util.Set;
+import java.util.*;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -13,17 +13,15 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 
 import jakarta.persistence.Table;
-import lombok.Builder;
 import lombok.Data;
 
 @Data
 @Entity
-@Builder
 @Table(name = "countries")
 public class Country {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
+    private Integer id;
 
     @Column(name = "name")
     private String name;
@@ -32,11 +30,10 @@ public class Country {
     private String beerSupply;
 
     @ManyToOne
-    @Column
     @JoinColumn(name = "currency_id")
     private Currency currency;
 
     @ManyToMany
-    @JoinTable(name = "country_currency", joinColumns = @JoinColumn(name = "language_id"), inverseJoinColumns = @JoinColumn(name = "country_id"))
-    private Set<Language> languages;
+    @JoinTable(name = "country_language", joinColumns = @JoinColumn(name = "language_id"), inverseJoinColumns = @JoinColumn(name = "country_id"))
+    private List<Language> languages;
 }
