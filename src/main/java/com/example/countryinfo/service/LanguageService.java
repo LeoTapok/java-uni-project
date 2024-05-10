@@ -23,13 +23,13 @@ import org.springframework.stereotype.Service;
 @AllArgsConstructor
 public class LanguageService {
 
-  private LanguageRepository languageRepository;
+  private final LanguageRepository languageRepository;
 
   private static final Integer ALL_CONTAINS = 69420;
 
-  private CacheService<Integer, Optional<Language>> cacheService;
+  private final CacheService<Integer, Optional<Language>> cacheService;
 
-  private void updateCacheService() {
+  void updateCacheService() {
     if (!cacheService.containsKey(ALL_CONTAINS)) {
       List<Language> languages = languageRepository.findAll();
       for (Language language : languages) {
@@ -70,15 +70,21 @@ public class LanguageService {
     languageRepository.save(language);
   }
 
+  public void createLanguages(List<Language> languages) throws ObjectExistException {
+    for (Language language : languages) {
+      Optional<Language> existingLanguage =
+          languageRepository.findByName(language.getName()).stream().findFirst();
+      if (existingLanguage.isPresent()) {
+        throw new ObjectExistException(OBJECT_EXIST_MSG);
+      }
+      languageRepository.save(language);
+    }
+  }
+
   @Transactional
   public void updateLanguage(Integer id, String name, Long speakers) throws BadRequestException {
     Optional<Language> language;
-    Integer hash = Objects.hashCode(id);
-    if (cacheService.containsKey(hash)) {
-      language = cacheService.get(hash);
-    } else {
-      language = languageRepository.findById(id);
-    }
+    language = languageRepository.findById(id);
     if (language.isEmpty()) {
       throw new BadRequestException(BAD_REQUEST_MSG);
     }
@@ -87,23 +93,14 @@ public class LanguageService {
     if (cacheService.containsKey(id)) {
       cacheService.remove(id);
     }
-    cacheService.put(id, language);
     languageRepository.save(language.get());
   }
 
   public void deleteLanguage(Integer id) throws BadRequestException {
     Optional<Language> language;
-    Integer hash = Objects.hash(id);
-    if (cacheService.containsKey(hash)) {
-      language = cacheService.get(hash);
-    } else {
-      language = languageRepository.findById(id);
-    }
+    language = languageRepository.findById(id);
     if (language.isEmpty()) {
       throw new BadRequestException(BAD_REQUEST_MSG);
-    }
-    if (cacheService.containsKey(hash)) {
-      cacheService.remove(hash);
     }
     languageRepository.deleteById(id);
   }

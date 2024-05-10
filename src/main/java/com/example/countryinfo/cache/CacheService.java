@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class CacheService<K, V> {
 
-  HashMap<K, V> cache = new HashMap<>();
+  private HashMap<K, V> cache = new HashMap<>();
 
   private static final int MAX_SIZE = 300;
 
@@ -31,5 +31,9 @@ public class CacheService<K, V> {
 
   public V get(K key) {
     return cache.get(key);
+  }
+
+  public void invalidateAll() {
+    cache.clear();
   }
 }

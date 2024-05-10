@@ -23,10 +23,10 @@ import org.springframework.stereotype.Service;
 @AllArgsConstructor
 public class CurrencyService {
 
-  private CurrencyRepository currencyRepository;
+  private final CurrencyRepository currencyRepository;
   private static final Integer ALL_CONTAINS = 69420;
 
-  private CacheService<Integer, Optional<Currency>> cacheService;
+  private final CacheService<Integer, Optional<Currency>> cacheService;
 
   private void updateCacheService() {
     if (!cacheService.containsKey(ALL_CONTAINS)) {
@@ -72,12 +72,7 @@ public class CurrencyService {
   @Transactional
   public void updateCurrency(Integer id, String name, Float usdPrice) throws BadRequestException {
     Optional<Currency> currency;
-    Integer hash = Objects.hashCode(id);
-    if (cacheService.containsKey(hash)) {
-      currency = cacheService.get(hash);
-    } else {
-      currency = currencyRepository.findById(id);
-    }
+    currency = currencyRepository.findById(id);
     if (currency.isEmpty()) {
       throw new BadRequestException(BAD_REQUEST_MSG);
     }
@@ -86,23 +81,14 @@ public class CurrencyService {
     if (cacheService.containsKey(id)) {
       cacheService.remove(id);
     }
-    cacheService.put(id, currency);
     currencyRepository.save(currency.get());
   }
 
   public void deleteCurrency(Integer id) throws BadRequestException {
     Optional<Currency> currency;
-    Integer hash = Objects.hash(id);
-    if (cacheService.containsKey(hash)) {
-      currency = cacheService.get(hash);
-    } else {
-      currency = currencyRepository.findById(id);
-    }
+    currency = currencyRepository.findById(id);
     if (currency.isEmpty()) {
       throw new BadRequestException(BAD_REQUEST_MSG);
-    }
-    if (cacheService.containsKey(hash)) {
-      cacheService.remove(hash);
     }
     currencyRepository.deleteById(id);
   }

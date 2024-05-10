@@ -27,13 +27,13 @@ import org.springframework.stereotype.Service;
 @AllArgsConstructor
 public class CountryService {
 
-  private CountryRepository countryRepository;
-  private LanguageRepository languageRepository;
-  private CurrencyRepository currencyRepository;
+  private final CountryRepository countryRepository;
+  private final LanguageRepository languageRepository;
+  private final CurrencyRepository currencyRepository;
 
   private static final Integer ALL_CONTAINS = 69420;
 
-  private CacheService<Integer, Optional<Country>> cacheService;
+  private final CacheService<Integer, Optional<Country>> cacheService;
 
   private void updateCacheService() {
     if (!cacheService.containsKey(ALL_CONTAINS)) {
@@ -99,17 +99,9 @@ public class CountryService {
 
   public void deleteCountry(Integer id) throws BadRequestException {
     Optional<Country> country;
-    Integer hash = Objects.hash(id);
-    if (cacheService.containsKey(hash)) {
-      country = cacheService.get(hash);
-    } else {
-      country = countryRepository.findById(id);
-    }
+    country = countryRepository.findById(id);
     if (country.isEmpty()) {
       throw new BadRequestException(BAD_REQUEST_MSG);
-    }
-    if (cacheService.containsKey(hash)) {
-      cacheService.remove(hash);
     }
     countryRepository.deleteById(id);
   }
@@ -147,11 +139,6 @@ public class CountryService {
       throw new BadRequestException(BAD_REQUEST_MSG);
     }
     country.get().setCurrency(currency.get());
-    Integer hash = Objects.hashCode(country.get().getId());
-    if (cacheService.containsKey(hash)) {
-      cacheService.remove(hash);
-    }
-    cacheService.put(hash, country);
     return countryRepository.save(country.get());
   }
 

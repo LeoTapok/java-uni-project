@@ -1,5 +1,6 @@
 package com.example.countryinfo.aop.aspect;
 
+import com.example.countryinfo.service.CounterService;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -26,11 +27,13 @@ public class LoggingAspect {
       return output;
     } catch (Throwable exception) {
       executionTime = System.currentTimeMillis() - start;
-      log.info(
+      log.error(
           "Method {}() failed in {} ms with message: {}",
           methodName,
           executionTime,
           exception.getMessage());
+      int requestCountInCatch = CounterService.get();
+      log.info("Current count of requests: {}", requestCountInCatch);
       throw exception;
     }
   }
